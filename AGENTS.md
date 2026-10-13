@@ -60,3 +60,17 @@
 - 每一層有筆數核對
 - 同一批重跑結果一致
 - 新踩到的坑已寫進 `LESSONS.md`
+
+## Agent skills
+
+### Issue tracker
+
+Issue 放在這個 repo 的 GitHub Issues，用 `gh` CLI 操作。See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+使用預設的五個 label：`needs-triage`、`needs-info`、`ready-for-agent`、`ready-for-human`、`wontfix`。See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context：根目錄一份 `GLOSSARY.md`，決策紀錄放 `docs/adr/`。See `docs/agents/domain.md`.

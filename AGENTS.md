@@ -9,8 +9,8 @@
 
 - WSL2（Ubuntu）、Java 17、Python 由 uv 管理
 - Synthea 資料在 `output/fhir/`（bulk 格式，每種資源一個 NDJSON 檔）
-- 產生資料：`java -jar tools/synthea-with-dependencies.jar -p 100 -s 42 --exporter.fhir.bulk_data true`
-- `-p` 是存活病患人數，已故病患也會輸出，所以總人數會多於 `-p`
+- 產生資料：`java -jar tools/synthea-with-dependencies.jar -p 1000 -s 42 --exporter.fhir.bulk_data true`
+- `-p` 是存活病患人數，已故病患也會輸出，所以總人數會多於 `-p`（目前這批：1154 人，其中已故 154 人）
 
 ## 目錄
 

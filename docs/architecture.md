@@ -120,7 +120,7 @@ flowchart LR
 | 來源資料 | 本機的批次資料夾 | Unity Catalog Volume |
 | 時區 | 固定 UTC | 固定 UTC |
 
-程式碼的限制：不使用 RDD 和 SparkContext（serverless 不支援），語法相容 Python 3.12。詳見 [ADR-0007](adr/0007-platform-portability.md)、[ADR-0008](adr/0008-timezone-and-dates.md)。
+程式碼的限制：不使用 RDD 和 SparkContext（serverless 不支援）。本機和 Databricks 都用 Python 3.12。詳見 [ADR-0007](adr/0007-platform-portability.md)、[ADR-0008](adr/0008-timezone-and-dates.md)。
 
 ## 執行方式
 

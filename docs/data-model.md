@@ -128,7 +128,7 @@ Bronze、Silver、Gold 和控制表的表結構與主鍵。名詞的定義見 [G
 | `is_deceased` | boolean | |
 | `race_code`、`race_display` | string | US Core 種族 extension 的 `ombCategory` |
 | `ethnicity_code`、`ethnicity_display` | string | US Core 族裔 extension 的 `ombCategory` |
-| `marital_status_code` | string | |
+| `marital_status_code`、`marital_status_display` | string | 代碼和說明；說明取 coding 的 `display`，沒有就取 `text`。不另建代碼表 |
 | `city`、`state`、`postal_code` | string | 第一個地址 |
 
 ### `silver.encounter`

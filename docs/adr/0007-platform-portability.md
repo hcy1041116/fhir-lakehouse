@@ -12,7 +12,7 @@
 | 表的位置 | 沒有 metastore，用路徑存取最簡單 | Unity Catalog，用 `catalog.schema.table` 存取 |
 | 來源檔 | 本機資料夾 | Unity Catalog Volume |
 | API 限制 | 無 | 不支援 RDD API |
-| Python | 3.13（uv 管理） | 3.12（serverless environment 4、5） |
+| Python | 3.12.3（uv 管理） | 3.12.3（serverless environment 4、5） |
 | Spark 預設時區 | `Asia/Taipei` | UTC |
 
 ## 選項
@@ -31,9 +31,8 @@
   - 來源批次資料的根目錄
   - Spark 時區（固定 UTC，見 ADR-0008）
 - 本機由入口程式自己建立帶 Delta 的 Spark session；Databricks 直接使用平台提供的 session。
-- 程式碼的限制：
-  - 不使用 RDD 和 SparkContext
-  - 語法要相容 Python 3.12
+- 程式碼的限制：不使用 RDD 和 SparkContext。
+- 本機的 Python 也固定為 3.12，和 Databricks serverless 相同。用到新版才有的語法時，本機就會先出錯，不用等到上 Databricks 才發現。
 - Fabric 第一階段不做，之後在解析層加一種模式即可。
 
 ## 理由
@@ -45,5 +44,5 @@
 ## 後果
 
 - 每次讀寫表都要經過解析層，不能直接呼叫 `spark.table()` 或寫死路徑。
-- `pyproject.toml` 要求 Python `>=3.13`，和 Databricks 的 3.12 不一致，要在 Databricks 相關的票裡調整。
+- `pyproject.toml` 原本要求 Python `>=3.13`，已改為 `>=3.12`，`.python-version` 改為 `3.12`。改完後本機實測 Spark + Delta 的寫入和 MERGE 正常。
 - 第一階段的 Databricks 驗收，以「用同一份程式跑通一批」為準。

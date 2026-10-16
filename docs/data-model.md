@@ -22,7 +22,8 @@ Bronze、Silver、Gold 和控制表的表結構與主鍵。名詞的定義見 [G
 | `batch_id` | string | **主鍵**。格式固定為 `batch_NNN` |
 | `batch_seq` | int | 批次序號，取自 `batch_id` 的數字部分，唯一 |
 | `source_dir` | string | 來源資料夾 |
-| `export_time` | timestamp | 匯出時間，取自 Synthea metadata 的 `runStartTime` |
+| `as_of_date` | date | 資料截止日，取自 Synthea metadata 的 `endTime`。批次層級的時間，用於版本比較（[ADR-0001](adr/0001-version-ordering.md)） |
+| `generated_at` | timestamp | 實際產生資料的時間，取自 metadata 的 `runStartTime`。僅供參考，不參與版本比較 |
 | `seed` | long | Synthea 種子 |
 | `clinician_seed` | long | Synthea 醫師種子 |
 | `status` | string | `running`、`succeeded`、`failed` |

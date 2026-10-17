@@ -21,11 +21,10 @@ Bronze、Silver、Gold 和控制表的表結構與主鍵。名詞的定義見 [G
 |---|---|---|
 | `batch_id` | string | **主鍵**。格式固定為 `batch_NNN` |
 | `batch_seq` | int | 批次序號，取自 `batch_id` 的數字部分，唯一 |
-| `source_dir` | string | 來源資料夾 |
-| `as_of_date` | date | 資料截止日，取自 Synthea metadata 的 `endTime`。批次層級的時間，用於版本比較（[ADR-0001](adr/0001-version-ordering.md)） |
-| `generated_at` | timestamp | 實際產生資料的時間，取自 metadata 的 `runStartTime`。僅供參考，不參與版本比較 |
-| `seed` | long | Synthea 種子 |
-| `clinician_seed` | long | Synthea 醫師種子 |
+| `export_dir` | string | 匯出資料夾 |
+| `export_type` | string | `initial`（初始匯出）或 `incremental`（增量匯出） |
+| `transaction_time` | timestamp | 匯出清單的 `transactionTime`，也就是資料截止日 00:00:00Z。批次層級的時間，`lastUpdated` 缺值時用於版本比較（[ADR-0001](adr/0001-version-ordering.md)） |
+| `since` | timestamp | 匯出清單中的 `_since`；初始匯出為 null |
 | `status` | string | `running`、`succeeded`、`failed` |
 | `started_at` | timestamp | 稽核欄位 |
 | `finished_at` | timestamp | 稽核欄位 |
@@ -50,7 +49,8 @@ Bronze、Silver、Gold 和控制表的表結構與主鍵。名詞的定義見 [G
 
 | 層 | 核對 | 預期 | 實際 |
 |---|---|---|---|
-| Bronze | 來源行數 | 來源檔的行數 | 該批寫入 Bronze 的列數 |
+| Bronze | 清單筆數 | 匯出清單上該檔案的 `count` | 檔案的行數 |
+| Bronze | 來源行數 | 檔案的行數 | 該批寫入 Bronze 的列數 |
 | Silver | 去向完整 | 該批 Bronze 列數 | 擋下 + 同批重複淘汰 + 過期 + 未變 + 新增 + 更新 |
 | Gold | 病人 | `silver.patient` 列數 | `gold.dim_patient` 列數 |
 | Gold | 就診 | `silver.encounter` 列數 | `gold.fact_encounter` 列數 |

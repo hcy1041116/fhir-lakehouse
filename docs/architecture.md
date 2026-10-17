@@ -4,31 +4,62 @@
 
 表結構見 [data-model.md](data-model.md)，名詞見 [GLOSSARY.md](../GLOSSARY.md)，設計理由見 [docs/adr/](adr/)。
 
-## 批次怎麼產生
+## 資料從哪裡來
 
-一個初始批次加上三個更新批次，模擬來源系統每個月更新一次（[ADR-0002](adr/0002-update-batches-by-end-date.md)）。
-
-四批用相同的種子和參考日期（`-p 1000 -s 42 -cs 42 -r 20261013`），只有模擬截止日 `-e` 每次往後延 30 天，各自獨立執行：
+管線不直接讀 Synthea。Synthea 先產生每一批的**完整匯出**，再由**匯出模擬器**扮演 FHIR 伺服器，轉成 Bulk Data 格式的**匯出**，管線只讀匯出（[ADR-0009](adr/0009-export-simulator.md)）。
 
 ```mermaid
 flowchart LR
-    P["同一群 1000 位病人<br/>-s 42 -cs 42 -r 20261013"]
-    P -->|-e 20261013| B1["batch_001<br/>初始批次"]
-    P -->|-e 20261112| B2["batch_002"]
-    P -->|-e 20261212| B3["batch_003"]
-    P -->|-e 20270111| B4["batch_004"]
+    subgraph SRC_SIDE[來源端：管線之外]
+        SY["Synthea<br/>同一群 1000 位病人"]
+        F1[(完整匯出<br/>2025-10-13)]
+        F2[(完整匯出<br/>2025-11-12)]
+        F3[(完整匯出<br/>2025-12-12)]
+        F4[(完整匯出<br/>2026-01-11)]
+        SIM[匯出模擬器]
+        SY --> F1 & F2 & F3 & F4
+        F1 & F2 & F3 & F4 --> SIM
+    end
+    SIM -->|"batch_001 初始匯出：全部"| PIPE[管線]
+    SIM -->|"batch_002～004 增量匯出：只有新增和有變的"| PIPE
 ```
 
+### Synthea 怎麼產生完整匯出
+
+四批用相同的參數，只有模擬截止日 `-e` 每次往後延 30 天，各自獨立執行（[ADR-0002](adr/0002-update-batches-by-end-date.md)）：
+
+```
+-p 1000 -s 42 -cs 42 -r 20251013 --exporter.years_of_history=0 --exporter.fhir.bulk_data true
+```
+
+| 批次 | `-e`（資料截止日） |
+|---|---|
+| `batch_001` | `20251013` |
+| `batch_002` | `20251112` |
+| `batch_003` | `20251212` |
+| `batch_004` | `20260111` |
+
 - 種子固定，所以截止日之前發生的事每次都一樣，差異只來自截止日之後發生的事，例如疾病痊癒、新的就診。
-- 每一批都是 Synthea 的完整匯出（最近 10 年），不是只有變動的部分。
-- 某個 id 這一批沒有出現，代表掉出了匯出範圍，不是被刪除。
-- 各批獨立執行，可以用任何順序產生。批次的新舊看**資料截止日**（metadata 的 `endTime`），不看實際執行時間。
+- 保留全部歷史（`years_of_history=0`），舊資料不會因為時間往後推而掉出範圍。
+- 四個截止日都在今天之前，不會產生未來的資料。
+
+### 匯出模擬器做什麼
+
+| | 初始匯出（`batch_001`） | 增量匯出（`batch_002` 之後） |
+|---|---|---|
+| 輸出哪些資料 | 全部 | 和上一批的完整匯出比較，新增的 id 和內容有變的 id |
+| `meta.lastUpdated` | 補上本批資料截止日 | 補上本批資料截止日 |
+| 匯出清單的 `transactionTime` | 本批資料截止日 | 本批資料截止日 |
+| 匯出清單的 `_since` | 無 | 上一批的 `transactionTime` |
+
+- 沒有變動的資料不會出現在增量匯出裡，這是常態，不是刪除。
+- 匯出清單的 `deleted` 第一階段一律為空。
 
 ## 一批資料怎麼流過各層
 
 ```mermaid
 flowchart TB
-    SRC["來源批次資料夾<br/>Patient / Encounter / Condition / Observation NDJSON<br/>+ Synthea metadata"]
+    SRC["一次匯出<br/>匯出清單 + Patient / Encounter / Condition / Observation NDJSON"]
 
     subgraph OPS[控制]
         BATCH[(ops.batch)]
@@ -54,7 +85,7 @@ flowchart TB
         G[(dim_patient<br/>dim_date<br/>fact_encounter<br/>top_diagnoses_by_age_band)]
     end
 
-    SRC -->|登記批次、讀資料截止日| BATCH
+    SRC -->|登記批次、讀匯出清單| BATCH
     SRC -->|整批取代| BR
     BR --> P1 --> P2 --> P3
     P3 -->|error：擋下| REJ
@@ -70,8 +101,8 @@ flowchart TB
 
 | 步驟 | 做什麼 | 決策 |
 |---|---|---|
-| 登記批次 | 寫入 `ops.batch`，從 metadata 讀資料截止日。截止日缺值，或同一種資源有多個檔案，就讓該批失敗 | LESSONS.md |
-| Bronze | 每一行原封不動存成一列，記下批次、來源檔、行號。重跑時整批取代 | [ADR-0003](adr/0003-bronze-raw-json.md) |
+| 登記批次 | 讀匯出清單，把資料截止日、`_since`、每個檔案的預期筆數寫入 `ops.batch`。清單缺 `transactionTime`、清單和實際檔案對不上，或同一種資源有多個檔案，就讓該批失敗 | [ADR-0009](adr/0009-export-simulator.md) |
+| Bronze | 每一行原封不動存成一列，記下批次、來源檔、行號。列數要等於檔案行數，也要等於清單上的 `count`。重跑時整批取代 | [ADR-0003](adr/0003-bronze-raw-json.md) |
 | 解析 | 用每種資源的明確 schema 解析 JSON，算出有效更新時間 | [ADR-0001](adr/0001-version-ordering.md) |
 | 攤平 | 一列進、一列出，把巢狀欄位展開成平的欄位。缺值填 null，不丟任何一列 | |
 | 品質規則 | 每條規則對每一列做檢查，違規就寫一筆 reject 紀錄；`error` 擋下，`warn` 照常使用 | [ADR-0004](adr/0004-reject-table-and-severity.md) |
@@ -98,8 +129,8 @@ flowchart LR
 
 | 種類 | 做不做 | 怎麼做 |
 |---|---|---|
-| 抽取增量 | 不做 | Synthea 每批都是完整匯出 |
-| 計算增量 | 做 | 每次只解析、檢查新批次的 Bronze 資料 |
+| 抽取增量 | 做（模擬） | 匯出模擬器依 Bulk Data `_since` 的語意，每批只輸出上次之後新增或有變的資料 |
+| 計算增量 | 做 | 每次只解析、檢查新批次的 Bronze 資料；從 `batch_002` 起計算量只和變動量成正比 |
 | 寫入增量 | Silver 做，Gold 不做 | Silver 只寫新增和有變的列；Gold 每次全量重建 |
 
 因為版本比較舊的資料不會寫入，**批次的處理順序不影響最後結果**，在後面的批次之後重跑前面的批次，也不會把資料改回舊版。
@@ -119,14 +150,16 @@ flowchart LR
 |---|---|---|
 | Spark session | 入口程式自己建立，加上 Delta 設定 | 使用平台提供的 session |
 | 表 | lakehouse 根目錄下的 Delta 路徑 | Unity Catalog 受管理表 |
-| 來源資料 | 本機的批次資料夾 | Unity Catalog Volume |
+| 匯出資料 | 本機的匯出資料夾 | 上傳到 Unity Catalog Volume 的匯出資料夾 |
 | 時區 | 固定 UTC | 固定 UTC |
 
 程式碼的限制：不使用 RDD 和 SparkContext（serverless 不支援）。本機和 Databricks 都用 Python 3.12。詳見 [ADR-0007](adr/0007-platform-portability.md)、[ADR-0008](adr/0008-timezone-and-dates.md)。
 
 ## 執行方式
 
-只有一個入口：「處理一批」。輸入環境、`batch_id` 和來源資料夾，依序跑完登記、Bronze、Silver（四種資源）、Gold、核對。
+只有一個入口：「處理一批」。輸入環境、`batch_id` 和匯出資料夾，依序跑完登記、Bronze、Silver（四種資源）、Gold、核對。
+
+產生完整匯出和執行匯出模擬器是另外的步驟，在管線之外，只有本機需要。
 
 - 本機：從命令列執行。
 - Databricks：用 Git 資料夾連接 repo，notebook 呼叫同一個入口。

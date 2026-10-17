@@ -55,3 +55,12 @@
   - 不用快照，改用 `-e` 延長模擬截止日（ADR-0002）。
   - 跑大量資料前，先用少量人數試跑，看 `/usr/bin/time` 的 `maxRSS` 估算記憶體。
   - 長時間沒進度時，先看 stderr 有沒有 `OutOfMemoryError`，不要一直等。
+
+## 2026-10-17 Synthea 保留全部歷史又設未來的截止日，會拒絕執行
+
+- 現象：加上 `--exporter.years_of_history=0`、`-e 20261112`（在執行當天之後），Synthea 回傳 exit code 0，卻沒有產生任何檔案。log 裡寫著 `Error: the specified end time is further in the future than the number of years of export history`。
+- 原因：Synthea 會檢查「截止日減去匯出年限」是否還在未來，是的話代表第一筆匯出的資料就在未來，它認為參數設錯而拒絕執行。`years_of_history=0` 時，截止日只要在未來就會被擋。
+- 做法：
+  - 產生資料時把所有截止日放在過去（ADR-0002 改從 `-r 20251013` 開始），就不需要強制執行。
+  - 真的需要未來的日期時，把 `-e` 換成 `-E` 強制執行。
+  - Synthea 失敗時 exit code 可能還是 0，產生資料的腳本要檢查輸出檔案是否存在，不能只看 exit code。
